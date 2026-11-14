@@ -105,6 +105,39 @@ class MainActivity : FlutterActivity() {
                         }
                     }
                 }
+                "openFile" -> {
+                    // Simpan ke Download lalu buka langsung dengan aplikasi penampil (PDF/Excel)
+                    val src = call.argument<String>("path") ?: ""
+                    val name = call.argument<String>("name") ?: "file"
+                    val folder = call.argument<String>("folder") ?: "KasirRumahMakan"
+                    val mime = call.argument<String>("mime") ?: "application/octet-stream"
+                    io.execute {
+                        var uri: Uri? = null
+                        try {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) uri = writeDownloadQ(src, name, folder, mime)
+                        } catch (e: Exception) {
+                            uri = null
+                        }
+                        main.post {
+                            val u = uri
+                            if (u == null) {
+                                result.success(false)
+                            } else {
+                                try {
+                                    val view = Intent(Intent.ACTION_VIEW).apply {
+                                        setDataAndType(u, mime)
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    startActivity(view)
+                                    result.success(true)
+                                } catch (e: Exception) {
+                                    result.success(false)
+                                }
+                            }
+                        }
+                    }
+                }
                 "pickFile" -> {
                     if (pendingPick != null) {
                         result.error("BUSY", "Pemilihan file sedang berjalan", null)
@@ -201,6 +234,38 @@ class MainActivity : FlutterActivity() {
         out = null
         socket = null
         connectedAddress = null
+    }
+
+    /** Android 10+: tulis/timpa file di Download/<folder>/<name>, kembalikan Uri MediaStore */
+    private fun writeDownloadQ(src: String, name: String, folder: String, mime: String): Uri? {
+        val f = File(src)
+        if (!f.exists()) return null
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
+        val resolver = contentResolver
+        val rel = Environment.DIRECTORY_DOWNLOADS + "/" + folder + "/"
+        val coll = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+        var uri: Uri? = null
+        resolver.query(
+            coll,
+            arrayOf(MediaStore.MediaColumns._ID),
+            MediaStore.MediaColumns.DISPLAY_NAME + "=? AND " + MediaStore.MediaColumns.RELATIVE_PATH + "=?",
+            arrayOf(name, rel),
+            null
+        )?.use { c ->
+            if (c.moveToFirst()) uri = ContentUris.withAppendedId(coll, c.getLong(0))
+        }
+        if (uri == null) {
+            val cv = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+                put(MediaStore.MediaColumns.MIME_TYPE, mime)
+                put(MediaStore.MediaColumns.RELATIVE_PATH, rel)
+            }
+            uri = resolver.insert(coll, cv)
+        }
+        val u = uri ?: return null
+        val os = resolver.openOutputStream(u, "wt") ?: return null
+        os.use { o -> FileInputStream(f).use { it.copyTo(o) } }
+        return u
     }
 
     private fun saveToDownloads(src: String, name: String, folder: String, mime: String): String? {

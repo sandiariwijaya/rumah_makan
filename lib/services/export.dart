@@ -64,17 +64,30 @@ class ReportExport {
       final f = File(p.join(dir.path, name));
       await f.writeAsBytes(bytes, flush: true);
 
-      String? saved;
-      try {
-        final sdk = await Native.sdkInt();
-        var allowed = true;
-        if (sdk > 0 && sdk < 29) allowed = (await Permission.storage.request()).isGranted;
-        if (allowed) saved = await Native.saveToDownloads(f.path, name, folder: 'KasirRumahMakan/Laporan', mime: mime);
-      } catch (_) {
-        saved = null;
-      }
       await Activity.log('data', 'Export laporan ${pdf ? 'PDF' : 'Excel'}', '${dbDay(from)} s/d ${dbDay(to)}');
-      if (saved != null) Notify.success('Tersimpan di Download/KasirRumahMakan/Laporan');
+
+      // Android 10+: simpan ke Download lalu langsung dibuka
+      final sdk = await Native.sdkInt();
+      if (sdk >= 29) {
+        final opened = await Native.openFile(f.path, name, folder: 'KasirRumahMakan/Laporan', mime: mime);
+        if (opened) {
+          Notify.success('Tersimpan di Download/KasirRumahMakan/Laporan');
+          return;
+        }
+        Notify.warning(pdf
+            ? 'Tidak ada aplikasi pembuka PDF. Pilih aplikasi untuk membuka/berbagi.'
+            : 'Tidak ada aplikasi pembuka Excel (mis. WPS/Google Sheets). Pilih aplikasi untuk membuka/berbagi.');
+      } else {
+        try {
+          var allowed = true;
+          if (sdk > 0) allowed = (await Permission.storage.request()).isGranted;
+          if (allowed) {
+            final saved = await Native.saveToDownloads(f.path, name, folder: 'KasirRumahMakan/Laporan', mime: mime);
+            if (saved != null) Notify.success('Tersimpan di Download/KasirRumahMakan/Laporan');
+          }
+        } catch (_) {}
+      }
+      // cadangan: buka lembar bagikan (bisa pilih aplikasi penampil)
       await Share.shareXFiles([XFile(f.path, mimeType: mime, name: name)], subject: 'Laporan ${_period(from, to)}');
     } catch (e) {
       Notify.error('Gagal export: $e');
@@ -144,6 +157,8 @@ class ReportExport {
         );
 
     final totalExpense = x.expenses.fold<int>(0, (s, e) => s + e.amount);
+    final pl = ProfitLoss.from(d, app.hppCategories);
+    String neg(int v) => v == 0 ? rp(0) : '(${rp(v)})';
 
     doc.addPage(
       pw.MultiPage(
@@ -202,6 +217,29 @@ class ReportExport {
               ['Total penjualan', rp(d.total)],
               ['Rata-rata per transaksi', rp(d.average)],
               ['Total pengeluaran', rp(d.expense)],
+            ],
+            right: {1},
+            flex: [3, 2],
+          ),
+          title('Laporan Laba Rugi'),
+          table(
+            ['Keterangan', 'Nilai'],
+            [
+              ['PENDAPATAN', ''],
+              ['   Penjualan kotor', rp(pl.gross)],
+              ['   Diskon', neg(pl.discount)],
+              ['   Service', rp(pl.service)],
+              ['Pendapatan bersih', rp(pl.revenue)],
+              ['HARGA POKOK PENJUALAN (HPP)', ''],
+              for (final e in pl.hppItems) ['   ${e.name}', neg(e.total)],
+              ['Total HPP', neg(pl.hpp)],
+              ['LABA KOTOR', rp(pl.grossProfit)],
+              ['BEBAN OPERASIONAL', ''],
+              for (final e in pl.opexItems) ['   ${e.name}', neg(e.total)],
+              ['Total beban operasional', neg(pl.opex)],
+              [pl.net >= 0 ? 'LABA BERSIH' : 'RUGI BERSIH', rp(pl.net)],
+              ['Margin laba bersih', '${pl.margin.toStringAsFixed(1)}%'],
+              if (pl.tax > 0) ['Pajak dipungut (titipan, bukan pendapatan)', rp(pl.tax)],
             ],
             right: {1},
             flex: [3, 2],
@@ -280,6 +318,36 @@ class ReportExport {
     for (final e in d.expenseByCat) {
       s1.row([XC.text(e.name), XC.number(e.count), XC.number(e.total)]);
     }
+
+    final pl = ProfitLoss.from(d, app.hppCategories);
+    final sl = wb.sheet('Laba Rugi', [40, 18]);
+    sl.row([XC.title('LAPORAN LABA RUGI')]);
+    sl.row([XC.bold(app.get('store_name'))]);
+    sl.row([XC.text('Periode: ${_period(d.from, d.to)}')]);
+    sl.row([]);
+    sl.row([XC.header('Keterangan'), XC.header('Nilai')]);
+    sl.row([XC.bold('PENDAPATAN')]);
+    sl.row([XC.text('   Penjualan kotor'), XC.number(pl.gross)]);
+    sl.row([XC.text('   Diskon'), XC.number(-pl.discount)]);
+    sl.row([XC.text('   Service'), XC.number(pl.service)]);
+    sl.row([XC.bold('Pendapatan bersih'), XC.numberBold(pl.revenue)]);
+    sl.row([]);
+    sl.row([XC.bold('HARGA POKOK PENJUALAN (HPP)')]);
+    for (final e in pl.hppItems) {
+      sl.row([XC.text('   ${e.name}'), XC.number(-e.total)]);
+    }
+    sl.row([XC.bold('Total HPP'), XC.numberBold(-pl.hpp)]);
+    sl.row([XC.bold('LABA KOTOR'), XC.numberBold(pl.grossProfit)]);
+    sl.row([]);
+    sl.row([XC.bold('BEBAN OPERASIONAL')]);
+    for (final e in pl.opexItems) {
+      sl.row([XC.text('   ${e.name}'), XC.number(-e.total)]);
+    }
+    sl.row([XC.bold('Total beban operasional'), XC.numberBold(-pl.opex)]);
+    sl.row([]);
+    sl.row([XC.bold(pl.net >= 0 ? 'LABA BERSIH' : 'RUGI BERSIH'), XC.numberBold(pl.net)]);
+    sl.row([XC.text('Margin laba bersih'), XC.text('${pl.margin.toStringAsFixed(1)}%')]);
+    if (pl.tax > 0) sl.row([XC.text('Pajak dipungut (titipan, bukan pendapatan)'), XC.number(pl.tax)]);
 
     final s2 = wb.sheet('Transaksi', [18, 12, 8, 14, 18, 14, 12, 10, 10, 10, 13, 13, 12, 50]);
     s2.row([

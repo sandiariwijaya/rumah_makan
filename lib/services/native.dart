@@ -73,6 +73,15 @@ class Native {
     return _ch.invokeMethod<String>('saveToDownloads', {'path': path, 'name': name, 'folder': folder, 'mime': mime});
   }
 
+  /// Simpan ke Download/<folder> lalu buka langsung (Android 10+). false = gagal / tidak ada aplikasi penampil.
+  static Future<bool> openFile(String path, String name, {String folder = 'KasirRumahMakan', required String mime}) async {
+    try {
+      return (await _ch.invokeMethod<bool>('openFile', {'path': path, 'name': name, 'folder': folder, 'mime': mime})) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Membuka pemilih file Android, mengembalikan path salinan file di cache
   static Future<String?> pickFile() async {
     return _ch.invokeMethod<String>('pickFile');
