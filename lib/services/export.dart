@@ -96,7 +96,7 @@ class ReportExport {
 
   // ======================= PDF =======================
   static Future<Uint8List> _buildPdf(AppState app, _ReportBundle x, {bool withLogo = true}) async {
-    final a = TextFmt.ascii;
+    const a = TextFmt.ascii;
     final d = x.d;
     final storeName = a(app.get('store_name'));
     final doc = pw.Document(title: 'Laporan Penjualan', author: storeName);
@@ -120,7 +120,7 @@ class ReportExport {
       return pw.TableHelper.fromTextArray(
         headers: headers.map(a).toList(),
         data: rows.map((r) => r.map(a).toList()).toList(),
-        headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 9),
+        headerStyle: const pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 9),
         headerDecoration: pw.BoxDecoration(color: primary),
         cellStyle: const pw.TextStyle(fontSize: 8.5),
         cellHeight: 16,
@@ -182,7 +182,7 @@ class ReportExport {
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    pw.Text(storeName, style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                    pw.Text(storeName, style: const pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
                     if (app.get('store_address').isNotEmpty)
                       pw.Text(a(app.get('store_address')), style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
                     if (app.get('store_phone').isNotEmpty)

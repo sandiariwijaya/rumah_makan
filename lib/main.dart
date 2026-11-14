@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import 'app_state.dart';
 import 'cart_state.dart';
+import 'screens/activation_screen.dart';
 import 'screens/login_screen.dart';
 import 'utils/notify.dart';
 
@@ -64,7 +65,7 @@ class KasirApp extends StatelessWidget {
           child: child ?? const SizedBox.shrink(),
         );
       },
-      home: const LoginScreen(),
+      home: app.get('activated') == '1' ? const LoginScreen() : const ActivationScreen(),
     );
   }
 }

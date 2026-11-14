@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -222,7 +221,7 @@ class StatCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(title, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant, height: 1.15), maxLines: 2, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 2),
                 FittedBox(
                   fit: BoxFit.scaleDown,

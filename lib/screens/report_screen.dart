@@ -100,6 +100,17 @@ class _ReportScreenState extends State<ReportScreen> {
     }
   }
 
+  Future<void> _printProfitLoss() async {
+    final d = _data;
+    if (d == null) return;
+    final app = context.read<AppState>();
+    final ok = await PrinterService.printItems(app, Receipts.profitLoss(app, d, app.user?.name ?? ''), copies: 1, silent: true);
+    if (ok) {
+      Notify.success('Laporan laba rugi dicetak');
+      Activity.log('data', 'Cetak laba rugi ke printer', '${dbDay(_from)} s/d ${dbDay(_to)}');
+    }
+  }
+
   Future<void> _export(bool pdf) async {
     await ReportExport.export(context.read<AppState>(), _from, _to, pdf: pdf);
   }
@@ -121,7 +132,7 @@ class _ReportScreenState extends State<ReportScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Laporan', style: TextStyle(fontWeight: FontWeight.w800)),
@@ -148,6 +159,7 @@ class _ReportScreenState extends State<ReportScreen> {
             tabAlignment: TabAlignment.start,
             tabs: [
               Tab(text: 'Ringkasan'),
+              Tab(text: 'Laba Rugi'),
               Tab(text: 'Transaksi'),
               Tab(text: 'Menu Terlaris'),
               Tab(text: 'Pengeluaran'),
@@ -174,6 +186,7 @@ class _ReportScreenState extends State<ReportScreen> {
                   : TabBarView(
                       children: [
                         _Summary(data: _data!, onRefresh: _load, onPrint: _printRecap, onExport: _export),
+                        _ProfitLossView(data: _data!, onPrint: _printProfitLoss, onExport: _export),
                         _SalesList(sales: _sales, onTap: _openSale, onRefresh: _load),
                         _TopItems(data: _data!),
                         _ExpenseList(list: _expenses, data: _data!),
@@ -276,6 +289,126 @@ class _Summary extends StatelessWidget {
           nvList(data.byCashier, 'Belum ada transaksi'),
         ],
       ),
+    );
+  }
+}
+
+class _ProfitLossView extends StatelessWidget {
+  final ReportData data;
+  final VoidCallback onPrint;
+  final ValueChanged<bool> onExport;
+  const _ProfitLossView({required this.data, required this.onPrint, required this.onExport});
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    final cs = Theme.of(context).colorScheme;
+    final pl = ProfitLoss.from(data, app.hppCategories);
+    const green = Color(0xFF16A34A);
+
+    Widget line(String l, int v, {bool bold = false, bool minus = false, Color? color, double indent = 0}) => Padding(
+          padding: EdgeInsets.fromLTRB(indent, 4, 0, 4),
+          child: Row(
+            children: [
+              Expanded(child: Text(l, style: TextStyle(fontWeight: bold ? FontWeight.w800 : FontWeight.w400))),
+              Text(minus && v != 0 ? '(${rp(v)})' : rp(v),
+                  style: TextStyle(fontWeight: bold ? FontWeight.w800 : FontWeight.w600, color: color)),
+            ],
+          ),
+        );
+
+    Widget section(String title, List<Widget> children) => Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: SoftCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(title, style: TextStyle(fontWeight: FontWeight.w900, color: cs.primary, letterSpacing: 0.4)),
+                const SizedBox(height: 4),
+                ...children,
+              ],
+            ),
+          ),
+        );
+
+    final netColor = pl.net >= 0 ? green : cs.error;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: onPrint,
+                icon: const Icon(Icons.print_rounded),
+                label: const Text('Cetak Laba Rugi'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton.filledTonal(tooltip: 'Export PDF', onPressed: () => onExport(true), icon: const Icon(Icons.picture_as_pdf_rounded)),
+            IconButton.filledTonal(tooltip: 'Export Excel', onPressed: () => onExport(false), icon: const Icon(Icons.grid_on_rounded)),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [netColor, Color.lerp(netColor, Colors.black, 0.25)!]),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            children: [
+              Text(pl.net >= 0 ? 'LABA BERSIH' : 'RUGI BERSIH',
+                  style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w700, letterSpacing: 1)),
+              FittedBox(
+                child: Text(rp(pl.net), style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900)),
+              ),
+              Text('Margin ${pl.margin.toStringAsFixed(1)}% dari pendapatan bersih', style: const TextStyle(color: Colors.white70)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        section('PENDAPATAN', [
+          line('Penjualan kotor', pl.gross, indent: 8),
+          if (pl.discount > 0) line('Diskon', pl.discount, minus: true, color: cs.error, indent: 8),
+          if (pl.service > 0) line('Service', pl.service, indent: 8),
+          const Divider(),
+          line('Pendapatan bersih', pl.revenue, bold: true),
+        ]),
+        section('HARGA POKOK PENJUALAN (HPP)', [
+          if (pl.hppItems.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Text('Belum ada pengeluaran kategori: ${app.hppCategories.join(', ')}',
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+            ),
+          for (final e in pl.hppItems) line(e.name, e.total, minus: true, indent: 8),
+          const Divider(),
+          line('Total HPP', pl.hpp, minus: true, bold: true),
+          line('LABA KOTOR', pl.grossProfit, bold: true, color: pl.grossProfit >= 0 ? green : cs.error),
+        ]),
+        section('BEBAN OPERASIONAL', [
+          if (pl.opexItems.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Text('Tidak ada beban operasional', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+            ),
+          for (final e in pl.opexItems) line(e.name, e.total, minus: true, indent: 8),
+          const Divider(),
+          line('Total beban operasional', pl.opex, minus: true, bold: true),
+        ]),
+        section('HASIL', [
+          line('Laba kotor', pl.grossProfit),
+          line('Beban operasional', pl.opex, minus: true),
+          const Divider(),
+          line(pl.net >= 0 ? 'LABA BERSIH' : 'RUGI BERSIH', pl.net, bold: true, color: netColor),
+        ]),
+        if (pl.tax > 0)
+          Text('Pajak dipungut dari pelanggan ${rp(pl.tax)} tidak dihitung sebagai pendapatan (titipan untuk disetor).',
+              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+        const SizedBox(height: 6),
+        Text('Kategori HPP diatur di Pengaturan > Transaksi & Pajak.', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+      ],
     );
   }
 }

@@ -38,4 +38,19 @@ void main() {
     final b = wb.build();
     expect(String.fromCharCodes(b.sublist(0, 2)), 'PK');
   });
+
+  test('laba rugi', () {
+    final d = ReportData(DateTime(2026, 1, 1), DateTime(2026, 1, 1))
+      ..gross = 100000
+      ..discount = 5000
+      ..service = 0
+      ..tax = 9500
+      ..expenseByCat = [NameValue('Bahan Baku', total: 40000), NameValue('Listrik', total: 10000)];
+    final pl = ProfitLoss.from(d, ['bahan baku']);
+    expect(pl.revenue, 95000);
+    expect(pl.hpp, 40000);
+    expect(pl.grossProfit, 55000);
+    expect(pl.opex, 10000);
+    expect(pl.net, 45000);
+  });
 }

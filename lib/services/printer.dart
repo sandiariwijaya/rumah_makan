@@ -108,17 +108,17 @@ class TextFmt {
 
 // ======================= KOMPOSISI STRUK =======================
 class Receipts {
-  static int chars(AppState app) {
-    final c = app.i('pr_chars', 32);
-    return c < 16 ? 16 : (c > 80 ? 80 : c);
-  }
+  /// Printer thermal 58mm: 32 karakter per baris (Font A standar)
+  static const int kChars58 = 32;
+
+  static int chars(AppState app) => kChars58;
 
   static List<PItem> header(AppState app) {
     final w = chars(app);
     final f = TextFmt(w);
     final out = <PItem>[];
     final logo = app.logo;
-    if (app.b('rc_show_logo') && logo != null && app.get('pr_logo_mode') != 'off') out.add(PLogo(logo));
+    if (app.b('rc_show_logo') && logo != null) out.add(PLogo(logo));
     final name = TextFmt.ascii(app.get('store_name')).trim();
     if (app.b('rc_show_name') && name.isNotEmpty) {
       final big = app.b('rc_title_big');
@@ -148,7 +148,7 @@ class Receipts {
   static List<PItem> sale(AppState app, Sale s, {bool reprint = false}) {
     final w = chars(app);
     final f = TextFmt(w);
-    final a = TextFmt.ascii;
+    const a = TextFmt.ascii;
     final out = header(app);
     out.add(PText(f.sep()));
     out.add(PText(f.kv('No', s.invoiceNo)));
@@ -227,7 +227,7 @@ class Receipts {
   static List<PItem> recap(AppState app, ReportData d, String printedBy, {List<Sale>? sales}) {
     final w = chars(app);
     final f = TextFmt(w);
-    final a = TextFmt.ascii;
+    const a = TextFmt.ascii;
     final out = <PItem>[];
     final name = a(app.get('store_name')).trim();
     if (name.isNotEmpty) {
@@ -298,18 +298,70 @@ class Receipts {
     out.add(PText('Oleh   : ${a(printedBy)}'));
     return out;
   }
+
+  /// Laporan laba rugi untuk printer thermal 58mm
+  static List<PItem> profitLoss(AppState app, ReportData d, String printedBy) {
+    final w = chars(app);
+    final f = TextFmt(w);
+    const a = TextFmt.ascii;
+    final pl = ProfitLoss.from(d, app.hppCategories);
+    final out = <PItem>[];
+    final name = a(app.get('store_name')).trim();
+    if (name.isNotEmpty) {
+      for (final l in f.wrap(name)) {
+        out.add(PText(f.center(l), bold: true));
+      }
+    }
+    out.add(PText(f.center('LAPORAN LABA RUGI'), bold: true));
+    out.add(PText(f.center(dbDay(d.from) == dbDay(d.to)
+        ? a(fmtDayName(d.from))
+        : '${fmtDateShort(d.from)} - ${fmtDateShort(d.to)}')));
+    out.add(PText(f.sep()));
+    out.add(PText('PENDAPATAN', bold: true));
+    out.add(PText(f.lr('Penjualan kotor', nf(pl.gross))));
+    if (pl.discount > 0) out.add(PText(f.lr('Diskon', '-${nf(pl.discount)}')));
+    if (pl.service > 0) out.add(PText(f.lr('Service', nf(pl.service))));
+    out.add(PText(f.lr('Pendapatan bersih', nf(pl.revenue)), bold: true));
+    out.add(PText(f.sep()));
+    out.add(PText('HPP (bahan baku)', bold: true));
+    if (pl.hppItems.isEmpty) out.add(PText('  -'));
+    for (final e in pl.hppItems) {
+      out.add(PText(f.lr('  ${a(e.name)}', nf(e.total))));
+    }
+    out.add(PText(f.lr('Total HPP', nf(pl.hpp))));
+    out.add(PText(f.lr('LABA KOTOR', nf(pl.grossProfit)), bold: true));
+    out.add(PText(f.sep()));
+    out.add(PText('BEBAN OPERASIONAL', bold: true));
+    if (pl.opexItems.isEmpty) out.add(PText('  -'));
+    for (final e in pl.opexItems) {
+      out.add(PText(f.lr('  ${a(e.name)}', nf(e.total))));
+    }
+    out.add(PText(f.lr('Total beban', nf(pl.opex))));
+    out.add(PText(f.sep('=')));
+    out.add(PText(f.lr(pl.net >= 0 ? 'LABA BERSIH' : 'RUGI BERSIH', nf(pl.net)), bold: true, big: true));
+    out.add(PText(f.lr('Margin', '${pl.margin.toStringAsFixed(1)}%')));
+    if (pl.tax > 0) {
+      out.add(PText(f.sep()));
+      out.add(PText(f.lr('Pajak dipungut*', nf(pl.tax))));
+      for (final l in f.wrap('*Pajak titipan pelanggan, tidak dihitung sebagai pendapatan.')) {
+        out.add(PText(l));
+      }
+    }
+    out.add(PText(f.sep()));
+    out.add(PText('Dicetak: ${fmtDateShort(DateTime.now())} ${fmtTime(DateTime.now())}'));
+    out.add(PText('Oleh   : ${a(printedBy)}'));
+    return out;
+  }
 }
 
 // ======================= ENCODER ESC/POS =======================
 class EscPos {
   static Future<Uint8List> encode(AppState app, List<PItem> items, {bool drawer = false}) async {
+    // Khusus printer thermal 58mm (384 dot, 32 karakter, Font A)
     final bytes = <int>[];
-    final fontB = app.b('pr_font_b');
-    final spacing = app.i('pr_line_spacing', 0);
-    if (app.b('pr_init')) bytes.addAll([0x1B, 0x40]); // ESC @ reset
-    if (app.b('pr_margin_zero')) bytes.addAll([0x1D, 0x4C, 0x00, 0x00]); // GS L 0 -> margin kiri 0
-    if (spacing > 0 && spacing < 256) bytes.addAll([0x1B, 0x33, spacing]);
-    final baseMode = fontB ? 0x01 : 0x00;
+    bytes.addAll([0x1B, 0x40]); // ESC @ reset
+    bytes.addAll([0x1D, 0x4C, 0x00, 0x00]); // GS L 0 -> margin kiri 0 (mepet)
+    const baseMode = 0x00;
     for (final it in items) {
       if (it is PText) {
         var mode = baseMode;
@@ -332,18 +384,14 @@ class EscPos {
     }
     bytes.addAll([0x1B, 0x21, 0x00]);
     final feed = app.i('pr_feed', 3);
-    for (var i = 0; i < feed && i < 10; i++) {
+    for (var i = 0; i < feed && i < 8; i++) {
       bytes.add(0x0A);
     }
-    if (app.b('pr_cut')) bytes.addAll([0x1D, 0x56, 0x42, 0x00]);
-    if (drawer) bytes.addAll([0x1B, 0x70, 0x00, 0x19, 0xFA]);
     return Uint8List.fromList(bytes);
   }
 
-  static int paperDots(AppState app) {
-    final d = app.i('pr_dots', 384);
-    return d < 96 ? 96 : (d > 832 ? 832 : d);
-  }
+  /// Lebar cetak printer 58mm = 384 dot
+  static int paperDots(AppState app) => 384;
 
   static Future<List<int>> _logo(AppState app, Uint8List src) async {
     final paper = paperDots(app);
@@ -378,66 +426,29 @@ class EscPos {
         lum[y * w + x] = l * alpha + 255 * (1 - alpha);
       }
     }
-    final dither = app.b('pr_dither');
     final black = Uint8List(paper * h);
     final offset = (paper - w) ~/ 2;
     for (var y = 0; y < h; y++) {
       for (var x = 0; x < w; x++) {
         final i = y * w + x;
-        final old = lum[i];
-        final isBlack = old < 128;
-        if (isBlack) black[y * paper + x + offset] = 1;
-        if (dither) {
-          final err = old - (isBlack ? 0 : 255);
-          if (x + 1 < w) lum[i + 1] += err * 7 / 16;
-          if (y + 1 < h) {
-            if (x > 0) lum[i + w - 1] += err * 3 / 16;
-            lum[i + w] += err * 5 / 16;
-            if (x + 1 < w) lum[i + w + 1] += err * 1 / 16;
-          }
-        }
+        if (lum[i] < 128) black[y * paper + x + offset] = 1;
       }
     }
 
     final out = <int>[];
-    if (app.get('pr_logo_mode') == 'escstar') {
-      // ESC * 24-dot double density (kompatibel printer lama)
-      out.addAll([0x1B, 0x33, 24]);
-      for (var y0 = 0; y0 < h; y0 += 24) {
-        out.addAll([0x1B, 0x2A, 33, paper & 0xFF, (paper >> 8) & 0xFF]);
-        for (var x = 0; x < paper; x++) {
-          for (var k = 0; k < 3; k++) {
-            var byte = 0;
-            for (var bit = 0; bit < 8; bit++) {
-              final y = y0 + k * 8 + bit;
-              if (y < h && black[y * paper + x] == 1) byte |= (0x80 >> bit);
-            }
-            out.add(byte);
+    // GS v 0 raster, dikirim per 24 baris agar aman untuk buffer kecil
+    final wb = (paper + 7) ~/ 8;
+    for (var y0 = 0; y0 < h; y0 += 24) {
+      final bandH = (h - y0) < 24 ? (h - y0) : 24;
+      out.addAll([0x1D, 0x76, 0x30, 0x00, wb & 0xFF, (wb >> 8) & 0xFF, bandH & 0xFF, (bandH >> 8) & 0xFF]);
+      for (var y = y0; y < y0 + bandH; y++) {
+        for (var xb = 0; xb < wb; xb++) {
+          var byte = 0;
+          for (var bit = 0; bit < 8; bit++) {
+            final x = xb * 8 + bit;
+            if (x < paper && black[y * paper + x] == 1) byte |= (0x80 >> bit);
           }
-        }
-        out.add(0x0A);
-      }
-      final sp = app.i('pr_line_spacing', 0);
-      if (sp > 0 && sp < 256) {
-        out.addAll([0x1B, 0x33, sp]);
-      } else {
-        out.addAll([0x1B, 0x32]);
-      }
-    } else {
-      // GS v 0 raster, dikirim per 24 baris agar aman untuk buffer kecil
-      final wb = (paper + 7) ~/ 8;
-      for (var y0 = 0; y0 < h; y0 += 24) {
-        final bandH = (h - y0) < 24 ? (h - y0) : 24;
-        out.addAll([0x1D, 0x76, 0x30, 0x00, wb & 0xFF, (wb >> 8) & 0xFF, bandH & 0xFF, (bandH >> 8) & 0xFF]);
-        for (var y = y0; y < y0 + bandH; y++) {
-          for (var xb = 0; xb < wb; xb++) {
-            var byte = 0;
-            for (var bit = 0; bit < 8; bit++) {
-              final x = xb * 8 + bit;
-              if (x < paper && black[y * paper + x] == 1) byte |= (0x80 >> bit);
-            }
-            out.add(byte);
-          }
+          out.add(byte);
         }
       }
     }
@@ -493,9 +504,9 @@ class PrinterService {
         Notify.warning('Bluetooth belum aktif.');
         return false;
       }
-      final data = await EscPos.encode(app, items, drawer: drawer);
-      final chunk = app.i('pr_chunk', 256);
-      final delay = app.i('pr_delay', 20);
+      final data = await EscPos.encode(app, items);
+      const chunk = 256;
+      const delay = 20;
       var connected = await Native.btIsConnected(addr);
       if (!connected) connected = await Native.btConnect(addr);
       if (!connected) {
@@ -504,7 +515,7 @@ class PrinterService {
       }
       var n = copies ?? app.i('pr_copies', 1);
       if (n < 1) n = 1;
-      if (n > 5) n = 5;
+      if (n > 3) n = 3;
       for (var c = 0; c < n; c++) {
         var ok = await Native.btWrite(data, chunk: chunk, delay: delay);
         if (!ok) {
@@ -528,8 +539,7 @@ class PrinterService {
   }
 
   static Future<bool> printSale(AppState app, Sale s, {bool reprint = false}) {
-    final drawer = !reprint && s.isCash && app.b('pr_drawer');
-    return printItems(app, Receipts.sale(app, s, reprint: reprint), drawer: drawer);
+    return printItems(app, Receipts.sale(app, s, reprint: reprint));
   }
 
   static Future<bool> testPrint(AppState app) => printItems(app, Receipts.testPage(app), copies: 1);

@@ -29,68 +29,12 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     _loadUsers();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _firstRunInfo());
   }
 
   Future<void> _loadUsers() async {
     final u = await Repo.users(onlyActive: true);
     if (!mounted) return;
-    setState(() {
-      _users = u;
-      if (_user.text.isEmpty && u.length == 1) _user.text = u.first.username;
-    });
-  }
-
-  Future<void> _firstRunInfo() async {
-    final app = context.read<AppState>();
-    if (app.get('first_run_shown') == '1') return;
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
-        return AlertDialog(
-          icon: Icon(Icons.key_rounded, size: 40, color: cs.primary),
-          title: const Text('Akun Awal', textAlign: TextAlign.center),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Gunakan akun berikut untuk login pertama kali:', textAlign: TextAlign.center),
-              const SizedBox(height: 14),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(14)),
-                child: Column(
-                  children: [
-                    Text('Username', style: TextStyle(color: cs.onPrimaryContainer, fontSize: 12)),
-                    Text(kDefaultUsername,
-                        style: TextStyle(color: cs.onPrimaryContainer, fontWeight: FontWeight.w800, fontSize: 20)),
-                    const SizedBox(height: 8),
-                    Text('Password', style: TextStyle(color: cs.onPrimaryContainer, fontSize: 12)),
-                    SelectableText(kDefaultPassword,
-                        style: TextStyle(color: cs.onPrimaryContainer, fontWeight: FontWeight.w800, fontSize: 20)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text('Pesan ini hanya muncul 1 kali. Segera ganti password di menu Pengaturan.',
-                  textAlign: TextAlign.center, style: TextStyle(color: cs.error, fontSize: 12)),
-            ],
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Saya Mengerti'),
-            ),
-          ],
-        );
-      },
-    );
-    await app.set('first_run_shown', '1');
-    if (!mounted) return;
-    if (_user.text.isEmpty) _user.text = kDefaultUsername;
-    _passFocus.requestFocus();
+    setState(() => _users = u);
   }
 
   Future<void> _login() async {
@@ -168,18 +112,20 @@ class _LoginScreenState extends State<LoginScreen> {
                 constraints: const BoxConstraints(maxWidth: 420),
                 child: Column(
                   children: [
+                    // Logo persegi panjang besar
                     Container(
-                      width: 96,
-                      height: 96,
+                      width: double.infinity,
+                      height: logo != null ? 150 : 120,
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(28),
+                        borderRadius: BorderRadius.circular(22),
                         boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 20, offset: Offset(0, 8))],
                       ),
                       clipBehavior: Clip.antiAlias,
                       child: logo != null
                           ? Image.memory(logo, fit: BoxFit.contain, gaplessPlayback: true)
-                          : Icon(Icons.restaurant_menu_rounded, size: 52, color: cs.primary),
+                          : Icon(Icons.restaurant_menu_rounded, size: 64, color: cs.primary),
                     ),
                     const SizedBox(height: 16),
                     Text(app.get('store_name'),

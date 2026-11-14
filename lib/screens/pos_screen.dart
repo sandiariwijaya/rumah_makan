@@ -894,7 +894,7 @@ class _HeldList extends StatefulWidget {
 }
 
 class _HeldListState extends State<_HeldList> {
-  late List<HeldOrder> _list = List.of(widget.list);
+  late final List<HeldOrder> _list = List.of(widget.list);
 
   int _total(HeldOrder h) {
     try {

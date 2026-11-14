@@ -105,7 +105,7 @@ class SettingsScreen extends StatelessWidget {
               ],
               const SectionTitle('PERANGKAT'),
               tile(Icons.print_rounded, 'Printer Bluetooth',
-                  app.get('pr_address').isEmpty ? 'Belum dipilih' : '${app.get('pr_name')} • ${app.i('pr_chars', 32)} karakter',
+                  app.get('pr_address').isEmpty ? 'Belum dipilih' : '${app.get('pr_name')} • thermal 58mm',
                   () => _go(context, const PrinterSettingsPage())),
               tile(Icons.devices_rounded, 'Tampilan (HP / Tablet)', 'Mode layar, warna tema, ukuran teks & kartu menu',
                   () => _go(context, const DisplaySettingsPage())),
@@ -125,14 +125,18 @@ class SettingsScreen extends StatelessWidget {
               ],
               const SectionTitle('LAINNYA'),
               tile(Icons.info_outline_rounded, 'Tentang Aplikasi', 'Kasir Rumah Makan v1.0.0', () {
-                showAboutDialog(
+                showDialog(
                   context: context,
-                  applicationName: 'Kasir Rumah Makan',
-                  applicationVersion: '1.0.0',
-                  applicationIcon: Icon(Icons.restaurant_menu_rounded, color: cs.primary, size: 40),
-                  children: const [
-                    Text('Aplikasi kasir offline untuk rumah makan. Data tersimpan di HP dan dibackup otomatis setiap login (3 file berputar).'),
-                  ],
+                  builder: (ctx) => AlertDialog(
+                    icon: Icon(Icons.restaurant_menu_rounded, color: cs.primary, size: 40),
+                    title: const Text('Kasir Rumah Makan', textAlign: TextAlign.center),
+                    content: const Text(
+                      'Versi 1.0.0\n\nAplikasi kasir offline untuk rumah makan. Data tersimpan di HP dan dibackup otomatis setiap login (3 file berputar).',
+                      textAlign: TextAlign.center,
+                    ),
+                    actionsAlignment: MainAxisAlignment.center,
+                    actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tutup'))],
+                  ),
                 );
               }),
               tile(Icons.logout_rounded, 'Keluar', 'Keluar dari akun', () => doLogout(context), color: cs.error),
@@ -403,15 +407,24 @@ class ReceiptPreview extends StatelessWidget {
                     ),
                   )
                 else if (it is PText)
-                  Text(
-                    TextFmt.ascii(it.text).padRight(it.wide ? chars ~/ 2 : chars),
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: it.big ? 20 : 13,
-                      height: 1.25,
-                      letterSpacing: it.wide ? 7.8 : 0,
-                      fontWeight: it.bold ? FontWeight.w900 : FontWeight.w500,
-                      color: Colors.black,
+                  SizedBox(
+                    height: it.big ? 32 : 16.5,
+                    child: Transform.scale(
+                      scaleX: it.wide ? 2 : 1,
+                      scaleY: it.big ? 2 : 1,
+                      alignment: Alignment.topLeft,
+                      child: Text(
+                        TextFmt.ascii(it.text).padRight(it.wide ? chars ~/ 2 : chars),
+                        maxLines: 1,
+                        softWrap: false,
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 13,
+                          height: 1.2,
+                          fontWeight: it.bold ? FontWeight.w900 : FontWeight.w500,
+                          color: Colors.black,
+                        ),
+                      ),
                     ),
                   ),
             ],
@@ -498,10 +511,11 @@ class _TransactionSettingsPageState extends State<TransactionSettingsPage> {
   late final _svc = TextEditingController(text: app.get('service_percent'));
   late final _prefix = TextEditingController(text: app.get('invoice_prefix'));
   late final _expCats = TextEditingController(text: app.get('expense_categories'));
+  late final _hppCats = TextEditingController(text: app.get('hpp_categories'));
 
   @override
   void dispose() {
-    for (final c in [_tax, _svc, _prefix, _expCats]) {
+    for (final c in [_tax, _svc, _prefix, _expCats, _hppCats]) {
       c.dispose();
     }
     super.dispose();
@@ -521,6 +535,7 @@ class _TransactionSettingsPageState extends State<TransactionSettingsPage> {
       'service_percent': svc.toString(),
       'invoice_prefix': prefix,
       'expense_categories': clean(_expCats.text),
+      'hpp_categories': clean(_hppCats.text),
     });
     Notify.success('Pengaturan transaksi disimpan');
     if (mounted) Navigator.pop(context);
@@ -569,6 +584,16 @@ class _TransactionSettingsPageState extends State<TransactionSettingsPage> {
           controller: _expCats,
           maxLines: 2,
           decoration: inputDeco('Pisahkan dengan koma', icon: Icons.category_outlined),
+        ),
+        const SectionTitle('LABA RUGI'),
+        TextField(
+          controller: _hppCats,
+          decoration: inputDeco('Kategori pengeluaran yang termasuk HPP', icon: Icons.inventory_2_outlined, hint: 'Bahan Baku'),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'HPP (Harga Pokok Penjualan) = belanja bahan untuk dimasak/dijual. Kategori lain dihitung sebagai beban operasional. Pisahkan dengan koma.',
+          style: TextStyle(fontSize: 12),
         ),
       ],
     );
@@ -728,7 +753,7 @@ class _PaymentSettingsPageState extends State<PaymentSettingsPage> {
   }
 }
 
-// ======================= PRINTER =======================
+// ======================= PRINTER (KHUSUS THERMAL 58MM) =======================
 class PrinterSettingsPage extends StatefulWidget {
   const PrinterSettingsPage({super.key});
 
@@ -738,19 +763,7 @@ class PrinterSettingsPage extends StatefulWidget {
 
 class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
   late final AppState app = context.read<AppState>();
-  late final _chars = TextEditingController(text: app.get('pr_chars'));
-  late final _dots = TextEditingController(text: app.get('pr_dots'));
-  late final _chunk = TextEditingController(text: app.get('pr_chunk'));
-  late final _delay = TextEditingController(text: app.get('pr_delay'));
   bool _scanning = false;
-
-  @override
-  void dispose() {
-    for (final c in [_chars, _dots, _chunk, _delay]) {
-      c.dispose();
-    }
-    super.dispose();
-  }
 
   Future<void> _choose() async {
     setState(() => _scanning = true);
@@ -800,33 +813,8 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
     }
   }
 
-  Future<void> _preset(int chars, int dots) async {
-    _chars.text = '$chars';
-    _dots.text = '$dots';
-    await app.setMany({'pr_chars': '$chars', 'pr_dots': '$dots'});
-    Notify.info('Preset diterapkan: $chars karakter, $dots dot');
-  }
-
-  Future<void> _saveNumbers() async {
-    int clampI(String s, int min, int max, int def) {
-      final v = int.tryParse(s.trim()) ?? def;
-      return v < min ? min : (v > max ? max : v);
-    }
-
-    final chars = clampI(_chars.text, 16, 80, 32);
-    final dots = clampI(_dots.text, 96, 832, 384);
-    final chunk = clampI(_chunk.text, 16, 8192, 256);
-    final delay = clampI(_delay.text, 0, 500, 20);
-    _chars.text = '$chars';
-    _dots.text = '$dots';
-    _chunk.text = '$chunk';
-    _delay.text = '$delay';
-    await app.setMany({'pr_chars': '$chars', 'pr_dots': '$dots', 'pr_chunk': '$chunk', 'pr_delay': '$delay'});
-    Notify.success('Pengaturan printer disimpan');
-  }
-
-  Widget _stepper(String label, String key, int min, int max, {String? sub}) {
-    final v = app.i(key, min);
+  Widget _stepper(String label, String key, int min, int max, int def, {String? sub}) {
+    final v = app.i(key, def);
     return ListTile(
       contentPadding: EdgeInsets.zero,
       title: Text(label),
@@ -847,12 +835,7 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
     final app = context.watch<AppState>();
     final cs = Theme.of(context).colorScheme;
     final addr = app.get('pr_address');
-    final chars = app.i('pr_chars', 32);
-    final dots = app.i('pr_dots', 384);
-    String preset = 'custom';
-    if (chars == 32 && dots == 384) preset = '58';
-    if (chars == 48 && dots == 576) preset = '80';
-    if (chars == 42 && dots == 384) preset = '58b';
+    final pct = app.i('pr_logo_percent', 60).clamp(30, 100);
 
     return _SettingsScaffold(
       title: 'Printer Bluetooth',
@@ -875,7 +858,8 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
                       children: [
                         Text(addr.isEmpty ? 'Belum ada printer' : app.get('pr_name'),
                             style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                        Text(addr.isEmpty ? 'Pilih printer yang sudah di-pair' : addr, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+                        Text(addr.isEmpty ? 'Pilih printer yang sudah di-pair' : addr,
+                            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
                       ],
                     ),
                   ),
@@ -913,124 +897,37 @@ class _PrinterSettingsPageState extends State<PrinterSettingsPage> {
             ],
           ),
         ),
-        const SectionTitle('UKURAN KERTAS'),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            ChoiceChip(label: const Text('58mm (32 huruf)'), selected: preset == '58', onSelected: (_) => _preset(32, 384)),
-            ChoiceChip(label: const Text('58mm Font kecil (42)'), selected: preset == '58b', onSelected: (_) => _preset(42, 384)),
-            ChoiceChip(label: const Text('80mm (48 huruf)'), selected: preset == '80', onSelected: (_) => _preset(48, 576)),
-            ChoiceChip(label: const Text('Custom'), selected: preset == 'custom', onSelected: (_) {}),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _chars,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: inputDeco('Karakter per baris'),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: cs.secondaryContainer.withOpacity(0.5), borderRadius: BorderRadius.circular(14)),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline_rounded, color: cs.onSecondaryContainer),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text('Khusus printer thermal Bluetooth 58mm. Struk otomatis menyesuaikan kertas 58mm (32 karakter per baris).'),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: TextField(
-                controller: _dots,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: inputDeco('Lebar cetak (dot)'),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
-        const SizedBox(height: 6),
-        Text('Jika teks turun baris/terpotong, kecilkan "Karakter per baris". Gunakan Tes Cetak untuk mengecek.',
-            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
-        const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerRight,
-          child: FilledButton.tonalIcon(onPressed: _saveNumbers, icon: const Icon(Icons.save_rounded), label: const Text('Simpan Ukuran')),
-        ),
-        const SectionTitle('HASIL CETAK'),
+        const SectionTitle('PENGATURAN CETAK'),
         _switch(app, 'pr_auto', 'Cetak otomatis setelah bayar'),
-        _stepper('Jumlah rangkap', 'pr_copies', 1, 3),
-        _switch(app, 'pr_font_b', 'Gunakan font kecil (Font B)', sub: 'Atur karakter per baris ke 42 (58mm) / 64 (80mm)'),
-        _switch(app, 'pr_margin_zero', 'Margin kiri 0 (mepet)', sub: 'Kirim perintah GS L 0'),
-        _stepper('Baris kosong setelah cetak', 'pr_feed', 0, 8, sub: 'Kecil = struk lebih pendek/mepet'),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Jarak antar baris'),
-          subtitle: Text(app.i('pr_line_spacing') == 0 ? 'Bawaan printer' : '${app.i('pr_line_spacing')} dot (kecil = lebih rapat)'),
-        ),
-        Slider(
-          value: app.i('pr_line_spacing').clamp(0, 60).toDouble(),
-          min: 0,
-          max: 60,
-          divisions: 60,
-          label: app.i('pr_line_spacing') == 0 ? 'Bawaan' : '${app.i('pr_line_spacing')}',
-          onChanged: (v) => app.set('pr_line_spacing', '${v.round()}'),
-        ),
-        _switch(app, 'pr_cut', 'Potong kertas otomatis', sub: 'Hanya untuk printer dengan auto cutter'),
-        _switch(app, 'pr_drawer', 'Buka laci uang (tunai)', sub: 'Jika laci kas tersambung ke printer'),
-        const SectionTitle('LOGO'),
-        DropdownButtonFormField<String>(
-          value: ['raster', 'escstar', 'off'].contains(app.get('pr_logo_mode')) ? app.get('pr_logo_mode') : 'raster',
-          decoration: inputDeco('Mode cetak logo', icon: Icons.image_rounded),
-          items: const [
-            DropdownMenuItem(value: 'raster', child: Text('Raster GS v 0 (umum)')),
-            DropdownMenuItem(value: 'escstar', child: Text('Bit image ESC * (printer lama)')),
-            DropdownMenuItem(value: 'off', child: Text('Tidak cetak logo')),
-          ],
-          onChanged: (v) => app.set('pr_logo_mode', v ?? 'raster'),
-        ),
-        const SizedBox(height: 8),
-        ListTile(contentPadding: EdgeInsets.zero, title: const Text('Lebar logo'), trailing: Text('${app.i('pr_logo_percent', 60)}%')),
-        Slider(
-          value: app.i('pr_logo_percent', 60).clamp(20, 100).toDouble(),
-          min: 20,
-          max: 100,
-          divisions: 16,
-          label: '${app.i('pr_logo_percent', 60)}%',
-          onChanged: (v) => app.set('pr_logo_percent', '${v.round()}'),
-        ),
-        _switch(app, 'pr_dither', 'Dithering (untuk logo foto/berwarna)'),
-        Text('Jika logo tercetak berantakan/karakter aneh, ganti mode ke "Bit image ESC *" atau matikan logo.',
-            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
-        const SectionTitle('KOMPATIBILITAS (LANJUTAN)'),
-        _switch(app, 'pr_init', 'Kirim reset printer (ESC @) di awal'),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _chunk,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: inputDeco('Ukuran paket (byte)'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: TextField(
-                controller: _delay,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: inputDeco('Jeda antar paket (ms)'),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        Text('Printer murah yang hasilnya terpotong/hilang di tengah: kecilkan ukuran paket (mis. 128) dan naikkan jeda (mis. 40-60 ms).',
-            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
-        const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerRight,
-          child: FilledButton.tonalIcon(onPressed: _saveNumbers, icon: const Icon(Icons.save_rounded), label: const Text('Simpan')),
-        ),
-        const SectionTitle('PRATINJAU STRUK'),
+        _stepper('Jumlah rangkap', 'pr_copies', 1, 3, 1),
+        _stepper('Baris kosong setelah cetak', 'pr_feed', 0, 6, 3, sub: 'Kecil = struk lebih pendek/mepet'),
+        _switch(app, 'rc_show_logo', 'Cetak logo di struk'),
+        if (app.b('rc_show_logo')) ...[
+          ListTile(contentPadding: EdgeInsets.zero, title: const Text('Lebar logo'), trailing: Text('$pct%')),
+          Slider(
+            value: pct.toDouble(),
+            min: 30,
+            max: 100,
+            divisions: 14,
+            label: '$pct%',
+            onChanged: (v) => app.set('pr_logo_percent', '${v.round()}'),
+          ),
+        ],
+        const SectionTitle('PRATINJAU STRUK 58MM'),
         ReceiptPreview(items: Receipts.sale(app, sampleSale()), chars: Receipts.chars(app)),
       ],
     );

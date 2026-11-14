@@ -76,37 +76,12 @@ class _HomeShellState extends State<HomeShell> {
         body: SafeArea(
           child: Row(
             children: [
-              LayoutBuilder(
-                builder: (context, cons) => SingleChildScrollView(
-                  child: SizedBox(
-                    height: cons.maxHeight < 600 ? 600 : cons.maxHeight,
-                    child: Material(
-                      color: Colors.transparent,
-                      child: NavigationRail(
-                selectedIndex: _index,
-                onDestinationSelected: (i) => setState(() => _index = i),
-                labelType: NavigationRailLabelType.all,
-                backgroundColor: cs.surfaceContainerLow,
-                leading: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: _Avatar(app: app),
-                ),
-                trailing: Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: IconButton.filledTonal(
-                    tooltip: 'Keluar',
-                    onPressed: () => doLogout(context),
-                    icon: const Icon(Icons.logout_rounded),
-                  ),
-                ),
-                destinations: [
-                  for (final t in tabs)
-                    NavigationRailDestination(icon: Icon(t.icon), selectedIcon: Icon(t.activeIcon), label: Text(t.label)),
-                ],
-                      ),
-                    ),
-                  ),
-                ),
+              _SideNav(
+                tabs: tabs,
+                index: _index,
+                onTap: (i) => setState(() => _index = i),
+                header: _Avatar(app: app),
+                onLogout: () => doLogout(context),
               ),
               VerticalDivider(width: 1, color: cs.outlineVariant.withOpacity(0.5)),
               Expanded(child: page),
@@ -118,14 +93,120 @@ class _HomeShellState extends State<HomeShell> {
 
     return Scaffold(
       body: page,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        height: 66,
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        destinations: [
-          for (final t in tabs) NavigationDestination(icon: Icon(t.icon), selectedIcon: Icon(t.activeIcon), label: t.label),
-        ],
+      bottomNavigationBar: _BottomNav(tabs: tabs, index: _index, onTap: (i) => setState(() => _index = i)),
+    );
+  }
+}
+
+/// Item navigasi: ikon dalam "pil" + label yang mengecil otomatis (tidak terpotong)
+class _NavItem extends StatelessWidget {
+  final _Tab tab;
+  final bool selected;
+  final VoidCallback onTap;
+  final double labelSize;
+  const _NavItem({required this.tab, required this.selected, required this.onTap, this.labelSize = 12});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final color = selected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 56,
+              height: 32,
+              decoration: BoxDecoration(
+                color: selected ? cs.secondaryContainer : Colors.transparent,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(selected ? tab.activeIcon : tab.icon, color: color, size: 24),
+            ),
+            const SizedBox(height: 4),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                tab.label,
+                maxLines: 1,
+                softWrap: false,
+                textScaler: TextScaler.noScaling,
+                style: TextStyle(
+                  fontSize: labelSize,
+                  color: color,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomNav extends StatelessWidget {
+  final List<_Tab> tabs;
+  final int index;
+  final ValueChanged<int> onTap;
+  const _BottomNav({required this.tabs, required this.index, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: cs.surfaceContainer,
+      elevation: 3,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(4, 6, 4, 6),
+          child: Row(
+            children: [
+              for (var i = 0; i < tabs.length; i++)
+                Expanded(child: _NavItem(tab: tabs[i], selected: i == index, onTap: () => onTap(i))),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SideNav extends StatelessWidget {
+  final List<_Tab> tabs;
+  final int index;
+  final ValueChanged<int> onTap;
+  final Widget header;
+  final VoidCallback onLogout;
+  const _SideNav({required this.tabs, required this.index, required this.onTap, required this.header, required this.onLogout});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      width: 100,
+      color: cs.surfaceContainerLow,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+        child: Column(
+          children: [
+            header,
+            const SizedBox(height: 16),
+            for (var i = 0; i < tabs.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: _NavItem(tab: tabs[i], selected: i == index, onTap: () => onTap(i), labelSize: 12.5),
+              ),
+            const SizedBox(height: 10),
+            IconButton.filledTonal(tooltip: 'Keluar', onPressed: onLogout, icon: const Icon(Icons.logout_rounded)),
+          ],
+        ),
       ),
     );
   }

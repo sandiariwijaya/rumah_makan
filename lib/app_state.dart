@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -85,10 +84,12 @@ class AppState extends ChangeNotifier {
     'perm_kasir_discount': '1',
     // lain
     'expense_categories': 'Bahan Baku,Gas & Air,Listrik,Gaji,Sewa,Operasional,Lain-lain',
+    'hpp_categories': 'Bahan Baku',
     'backup_last_slot': '0',
     'backup_last_time': '',
     'backup_last_file': '',
     'first_run_shown': '0',
+    'activated': '0',
   };
 
   Map<String, String> _s = {};
@@ -204,6 +205,10 @@ class AppState extends ChangeNotifier {
 
   List<String> get orderTypes =>
       get('order_types').split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+
+  /// Kategori pengeluaran yang dihitung sebagai HPP (laporan laba rugi)
+  List<String> get hppCategories =>
+      get('hpp_categories').split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
 
   List<String> get expenseCategories =>
       get('expense_categories').split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();

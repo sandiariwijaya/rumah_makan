@@ -328,3 +328,47 @@ class ActivityLog {
         detail: toStr(m['detail']),
       );
 }
+
+/// Laporan laba rugi sederhana.
+/// HPP = pengeluaran dengan kategori bahan baku (diatur di Pengaturan > Transaksi & Pajak).
+class ProfitLoss {
+  final int gross; // penjualan kotor (subtotal)
+  final int discount;
+  final int service;
+  final int tax; // pajak dipungut (titipan, bukan pendapatan)
+  final List<NameValue> hppItems;
+  final List<NameValue> opexItems;
+
+  ProfitLoss({
+    required this.gross,
+    required this.discount,
+    required this.service,
+    required this.tax,
+    required this.hppItems,
+    required this.opexItems,
+  });
+
+  int get revenue => gross - discount + service;
+  int get hpp => hppItems.fold(0, (a, b) => a + b.total);
+  int get grossProfit => revenue - hpp;
+  int get opex => opexItems.fold(0, (a, b) => a + b.total);
+  int get net => grossProfit - opex;
+  double get margin => revenue == 0 ? 0 : net * 100 / revenue;
+
+  factory ProfitLoss.from(ReportData d, List<String> hppCategories) {
+    final keys = hppCategories.map((e) => e.trim().toLowerCase()).toSet();
+    final hpp = <NameValue>[];
+    final opex = <NameValue>[];
+    for (final e in d.expenseByCat) {
+      (keys.contains(e.name.trim().toLowerCase()) ? hpp : opex).add(e);
+    }
+    return ProfitLoss(
+      gross: d.gross,
+      discount: d.discount,
+      service: d.service,
+      tax: d.tax,
+      hppItems: hpp,
+      opexItems: opex,
+    );
+  }
+}

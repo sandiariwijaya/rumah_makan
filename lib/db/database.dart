@@ -40,7 +40,7 @@ class Activity {
 }
 
 String? _settingGroup(String k) {
-  if (k.startsWith('backup_') || k == 'first_run_shown' || k == 'seeded' || k.startsWith('ui_')) return null;
+  if (k.startsWith('backup_') || k.startsWith('activated') || k == 'first_run_shown' || k == 'seeded' || k.startsWith('ui_')) return null;
   if (k.startsWith('pr_')) return 'Printer';
   if (k.startsWith('rc_') || k.startsWith('receipt_')) return 'Struk';
   if (k.startsWith('perm_')) return 'Hak akses kasir';
@@ -58,6 +58,7 @@ const Map<String, String> _settingLabels = {
   'service_percent': 'Service %',
   'invoice_prefix': 'Awalan nota',
   'expense_categories': 'Kategori pengeluaran',
+  'hpp_categories': 'Kategori HPP',
 };
 
 class Db {

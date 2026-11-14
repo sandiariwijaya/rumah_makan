@@ -2,12 +2,9 @@
 
 Aplikasi kasir offline untuk rumah makan. Nyaman di HP maupun tablet, printer thermal Bluetooth 58mm/80mm.
 
-## Login pertama
-Setelah install, muncul info akun awal **satu kali**:
-- Username: `owner`
-- Password: `Sandi123`
-
-Segera ganti di **Pengaturan > Ganti Password**.
+## Aktivasi & login pertama
+Setelah install, aplikasi meminta **kode aktivasi** (hanya diketahui pembuat aplikasi).
+Setelah aktif, login pertama memakai akun awal owner (lihat catatan pembuat), lalu segera ganti password di **Pengaturan > Ganti Password**.
 
 ## Cara build APK
 
@@ -37,19 +34,15 @@ flutter build apk --release
 - **Laporan**: ringkasan, grafik harian, per metode bayar & per kasir, transaksi (cetak ulang; **hapus hanya owner**), menu terlaris, pengeluaran.
   - **Cetak Laporan Harian** ke printer thermal (ringkasan, atau + daftar transaksi).
   - **Export PDF & Excel (.xlsx)** – tersimpan di `Download/KasirRumahMakan/Laporan/` dan bisa langsung dibagikan (WA, Drive, dll).
+- **Laba Rugi**: pendapatan bersih − HPP (kategori pengeluaran bahan baku) − beban operasional = laba bersih; tampil di layar, cetak struk, PDF & Excel.
 - **Log Aktivitas** (owner): login/logout, transaksi baru, hapus transaksi (beserta alasan & isi nota), cetak ulang, perubahan menu/harga, pengeluaran, pengguna, pengaturan, backup/restore, export.
 - **Pengaturan**: profil & logo toko, isi struk + pratinjau, pajak/service, pembayaran & QRIS, printer, tampilan (Otomatis/HP/Tablet, orientasi, warna tema, mode gelap, ukuran teks & kartu), pengguna owner/kasir + hak akses kasir, backup & restore.
 - **Backup otomatis tiap login**, 3 file berputar: `backup_kasir_rm_1.db` → `_2` → `_3` → kembali ke `_1` (ditimpa). Lokasi: `Download/KasirRumahMakan/`. Restore dari file untuk pindah HP.
 
-## Printer thermal Bluetooth
+## Printer thermal Bluetooth 58mm
 1. Pair printer dulu di Pengaturan Bluetooth HP (PIN umumnya `0000` atau `1234`).
 2. Aplikasi: **Pengaturan > Printer Bluetooth > Pilih Printer**, lalu **Tes Cetak**.
-3. 58mm = 32 karakter / 384 dot. 80mm = 48 karakter / 576 dot.
-4. Bila hasil kurang pas:
-   - Teks turun baris → kecilkan *Karakter per baris*.
-   - Logo berantakan → mode logo *Bit image ESC \** atau matikan logo.
-   - Cetakan terpotong/hilang di tengah → *Ukuran paket* 128 dan *Jeda* 40–60 ms.
-   - Struk terlalu panjang → kurangi *Baris kosong setelah cetak*, atur *Jarak antar baris*.
+3. Layout struk tetap untuk kertas 58mm (32 karakter per baris, 384 dot).
 
 ## Struktur kode
 ```
