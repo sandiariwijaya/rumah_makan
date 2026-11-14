@@ -13,7 +13,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       - uses: subosito/flutter-action@v2
         with:
@@ -22,6 +22,15 @@ jobs:
 
       - name: Lengkapi folder platform Android
         run: flutter create --org com.sandi --project-name kasir_rumah_makan --platforms android .
+
+      - name: Matikan lint vital (bug lint pada plugin)
+        run: |
+          F=android/build.gradle.kts
+          [ -f "$F" ] || F=android/build.gradle
+          if ! grep -q "lintVital" "$F"; then
+            printf '\nsubprojects {\n    tasks.matching { it.name.startsWith("lintVital") }.configureEach { enabled = false }\n}\n' >> "$F"
+          fi
+          tail -5 "$F"
 
       - name: Ambil paket
         run: flutter pub get
