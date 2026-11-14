@@ -1,0 +1,80 @@
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:flutter/services.dart';
+
+class BtDevice {
+  final String name;
+  final String address;
+  BtDevice(this.name, this.address);
+}
+
+/// Jembatan ke kode Android (Kotlin) - Bluetooth klasik & file.
+class Native {
+  static const MethodChannel _ch = MethodChannel('kasir/native');
+
+  static Future<int> sdkInt() async {
+    if (!Platform.isAndroid) return 0;
+    try {
+      return (await _ch.invokeMethod<int>('sdkInt')) ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  static Future<bool> btEnabled() async {
+    try {
+      return (await _ch.invokeMethod<bool>('btEnabled')) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<List<BtDevice>> btPaired() async {
+    final r = await _ch.invokeMethod<List<dynamic>>('btPaired');
+    return (r ?? const [])
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .map((m) => BtDevice((m['name'] ?? '').toString(), (m['address'] ?? '').toString()))
+        .toList();
+  }
+
+  static Future<bool> btConnect(String address) async {
+    try {
+      return (await _ch.invokeMethod<bool>('btConnect', {'address': address})) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> btIsConnected(String address) async {
+    try {
+      return (await _ch.invokeMethod<bool>('btIsConnected', {'address': address})) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> btWrite(Uint8List data, {int chunk = 256, int delay = 20}) async {
+    try {
+      return (await _ch.invokeMethod<bool>('btWrite', {'data': data, 'chunk': chunk, 'delay': delay})) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> btDisconnect() async {
+    try {
+      await _ch.invokeMethod('btDisconnect');
+    } catch (_) {}
+  }
+
+  static Future<String?> saveToDownloads(String path, String name,
+      {String folder = 'KasirRumahMakan', String mime = 'application/octet-stream'}) async {
+    return _ch.invokeMethod<String>('saveToDownloads', {'path': path, 'name': name, 'folder': folder, 'mime': mime});
+  }
+
+  /// Membuka pemilih file Android, mengembalikan path salinan file di cache
+  static Future<String?> pickFile() async {
+    return _ch.invokeMethod<String>('pickFile');
+  }
+}
